@@ -1,1 +1,4 @@
 myenv/
+.venv/
+TrendNews/.venv/
+nlinear_predictstock.egg-info
