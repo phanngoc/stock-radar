@@ -1,3 +1,4 @@
+# Core
 streamlit
 torch
 numpy
@@ -5,3 +6,17 @@ pandas
 scikit-learn
 plotly
 vnstock
+
+# Phase 1: Time Series & Statistics
+statsmodels
+hmmlearn
+filterpy
+
+# Phase 2: Network Analysis (coming)
+networkx
+
+# Phase 3: Multivariate (coming)
+arch
+
+# Utilities
+scipy
