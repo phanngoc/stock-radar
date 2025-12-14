@@ -3,6 +3,7 @@ import numpy as np
 from .arima_model import ARIMAModel
 from .kalman_filter import KalmanFilter, AdaptiveKalmanFilter
 from .hmm_regime import HMMRegimeDetector
+from .nlinear_model import NLinearModel
 from .statistics import StationarityTest, PCAAnalyzer
 
 
@@ -12,23 +13,25 @@ class FoundationSignals:
     - ARIMA: Direction forecast
     - Kalman: Noise-filtered deviation
     - HMM: Market regime
+    - NLinear: Deep learning forecast
     - Statistics: Strategy recommendation
     
     Output: Composite signal [-1, 1] với confidence
     """
     
     def __init__(self, weights=None):
-        # Optimized for Vietnam market: HMM regime detection is critical
-        # due to high retail participation and momentum patterns
+        # Optimized for Vietnam market with NLinear added
         self.weights = weights or {
-            'arima': 0.25,   # Reduced: less effective in volatile VN market
-            'kalman': 0.20,  # Reduced: noise filtering less critical
-            'hmm': 0.55      # Increased: regime detection crucial for VN
+            'arima': 0.20,   # Reduced from 0.25
+            'kalman': 0.15,  # Reduced from 0.20
+            'hmm': 0.50,     # Reduced from 0.55
+            'nlinear': 0.15  # New: deep learning forecast
         }
         
         self.arima = ARIMAModel()
         self.kalman = AdaptiveKalmanFilter()
         self.hmm = HMMRegimeDetector()
+        self.nlinear = NLinearModel()
         
     def generate(self, prices, pred_days=5):
         """
@@ -54,6 +57,7 @@ class FoundationSignals:
         arima_result = self.arima.get_signal(prices, pred_days)
         kalman_result = self.kalman.get_signal(prices)
         hmm_result = self.hmm.get_signal(prices)
+        nlinear_result = self.nlinear.get_signal(prices, pred_days)
         
         # Stationarity test for strategy recommendation
         stat_result = StationarityTest.full_test(prices)
@@ -62,14 +66,16 @@ class FoundationSignals:
         composite = (
             self.weights['arima'] * arima_result['signal'] +
             self.weights['kalman'] * kalman_result['signal'] +
-            self.weights['hmm'] * hmm_result['signal']
+            self.weights['hmm'] * hmm_result['signal'] +
+            self.weights['nlinear'] * nlinear_result['signal']
         )
         
         # Confidence = weighted average of individual confidences
         confidence = (
             self.weights['arima'] * arima_result['confidence'] +
             self.weights['kalman'] * kalman_result['confidence'] +
-            self.weights['hmm'] * hmm_result['confidence']
+            self.weights['hmm'] * hmm_result['confidence'] +
+            self.weights['nlinear'] * nlinear_result['confidence']
         )
         
         # Regime adjustment
@@ -88,12 +94,12 @@ class FoundationSignals:
             action = 'HOLD'
             
         # Signal agreement check
-        signals = [arima_result['signal'], kalman_result['signal'], hmm_result['signal']]
+        signals = [arima_result['signal'], kalman_result['signal'], hmm_result['signal'], nlinear_result['signal']]
         agreement = np.sign(signals)
         if np.all(agreement == agreement[0]) and agreement[0] != 0:
             signal_quality = 'STRONG_AGREEMENT'
             confidence *= 1.2  # Boost confidence
-        elif np.sum(agreement == np.sign(composite)) >= 2:
+        elif np.sum(agreement == np.sign(composite)) >= 3:
             signal_quality = 'MAJORITY_AGREEMENT'
         else:
             signal_quality = 'MIXED_SIGNALS'
@@ -129,6 +135,13 @@ class FoundationSignals:
                     'regime_consistency': hmm_result.get('regime_consistency', 0),
                     'transition': hmm_result['transition'],
                     'probabilities': hmm_result['probabilities']
+                },
+                'nlinear': {
+                    'signal': nlinear_result['signal'],
+                    'direction': nlinear_result['direction'],
+                    'pct_change': nlinear_result['pct_change'],
+                    'confidence': nlinear_result['confidence'],
+                    'forecast': nlinear_result['forecast'].tolist() if len(nlinear_result['forecast']) > 0 else []
                 }
             },
             'analysis': {

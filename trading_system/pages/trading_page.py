@@ -139,9 +139,14 @@ def show_signal_explanation():
         Final Signal = 0.25 × Foundation + 0.20 × Network + 0.20 × Multivariate + 0.35 × Pattern
         ```
         
+        **Foundation breakdown:**
+        ```
+        Foundation = 0.20×ARIMA + 0.15×Kalman + 0.50×HMM + 0.15×NLinear
+        ```
+        
         | Module | Trọng số | Phân tích |
         |-------|----------|-----------|
-        | **Foundation** | 25% | ARIMA (dự báo), Kalman (lọc nhiễu), HMM (xu hướng) |
+        | **Foundation** | 25% | ARIMA (dự báo), Kalman (lọc nhiễu), HMM (xu hướng), NLinear (AI) |
         | **Network** | 20% | Mối quan hệ giữa các cổ phiếu, cổ phiếu dẫn dắt |
         | **Multivariate** | 20% | VAR, Granger causality, rủi ro đuôi (tail risk) |
         | **Pattern** | 35% | Regime (Bull/Bear), Factor model, Anomaly |
@@ -151,9 +156,102 @@ def show_signal_explanation():
         ### 🔍 Chi tiết từng Module
         
         **Foundation (Nền tảng):**
-        - **ARIMA**: Dự báo giá ngắn hạn (1-5 ngày). Signal > 0 = giá sẽ tăng
-        - **Kalman Filter**: So sánh giá thực vs giá "thật". Z-score > 2 = đang overvalued
-        - **HMM Regime**: Xác định thị trường Bull/Bear/Sideways
+        
+        **📈 ARIMA - AutoRegressive Integrated Moving Average:**
+        
+        **🎯 Ý nghĩa cốt lõi:**
+        ARIMA trả lời câu hỏi: *"Nếu thị trường tiếp tục vận hành như quá khứ, thì 5 ngày tới xác suất tăng/giảm nghiêng về phía nào?"*
+        
+        👉 **Đây là baseline statistical trend, không dùng để bắt đáy/đỉnh.**
+        
+        ```
+        1. Tìm d (differencing): ADF test để đạt stationarity
+        2. Grid search (p,q): Tối ưu AIC score
+        3. Fit model: ARIMA(p,d,q) trên dữ liệu lịch sử
+        4. Forecast: Dự báo 5 ngày tương lai
+        5. Signal = direction × confidence
+           - direction: +1 (tăng >1%), -1 (giảm >1%), 0 (sideways)
+           - confidence: 1 - (conf_interval_width / price_level)
+        ```
+        **💡 Ý nghĩa & Cách đọc:**
+        - **Signal > +0.5**: Xu hướng tăng mạnh ngắn hạn → Cân nhắc mua
+        - **Signal 0 ± 0.3**: Giá đi ngang → Chờ đợi tín hiệu rõ hơn  
+        - **Signal < -0.5**: Xu hướng giảm mạnh → Cân nhắc bán
+        - **Confidence cao**: Khoảng tin cậy hẹp → Dự báo đáng tin cậy
+        
+        **🔧 Kalman Filter - Noise Filtering:**
+        
+        **🎯 Ý nghĩa cốt lõi:**
+        Kalman filter trả lời: *"Giá hiện tại lệch bao xa so với giá 'hợp lý' đã được làm mượt?"*
+        
+        👉 **Đây là mean-reversion detector, không phải trend-following.**
+        
+        ```
+        1. State model: X(t+1) = X(t) + noise
+        2. Observation: Y(t) = X(t) + measurement_noise
+        3. Predict: X_pred = X_prev, P_pred = P_prev + Q
+        4. Update: K = P_pred/(P_pred + R), X = X_pred + K×(Y - X_pred)
+        5. Z-score = (actual_price - filtered_price) / std
+        6. Signal = -tanh(z_score/2)  # Negative vì overvalued = sell
+        ```
+        **💡 Ý nghĩa & Cách đọc:**
+        - **Signal > +0.3**: Giá thực < giá lọc → Undervalued → Mua
+        - **Signal ≈ 0**: Giá thực ≈ giá lọc → Fair value → Giữ
+        - **Signal < -0.3**: Giá thực > giá lọc → Overvalued → Bán
+        - **Z-score > 2**: Giá lệch chuẩn >2σ → Tín hiệu mạnh
+        
+        **🎭 HMM - Hidden Markov Model:**
+        
+        **🎯 Ý nghĩa cốt lõi:**
+        HMM trả lời: *"Thị trường hiện đang ở trạng thái ẩn nào, và xác suất duy trì trạng thái đó là bao nhiêu?"*
+        
+        👉 **Đây là xương sống của Foundation.**
+        
+        ```
+        1. Features: [returns, volatility, volume_ratio]
+        2. States: 3 hidden states (Bull/Bear/Sideways)
+        3. Training: Baum-Welch algorithm học transition matrix
+        4. Viterbi: Tìm sequence states có xác suất cao nhất
+        5. Signal mapping: Bull=+0.8, Sideways=0, Bear=-0.8
+        6. Confidence = regime_consistency × transition_stability
+        ```
+        **💡 Ý nghĩa & Cách đọc:**
+        - **BULL (+0.8)**: Thị trường tăng → Tăng tỷ trọng cổ phiếu
+        - **SIDEWAYS (0)**: Thị trường đi ngang → Chiến lược mean reversion
+        - **BEAR (-0.8)**: Thị trường giảm → Giảm tỷ trọng/hedge
+        - **Confidence cao**: Regime ổn định → Tin tưởng tín hiệu
+        
+        **🤖 NLinear - Normalization Linear:**
+        
+        **🎯 Ý nghĩa cốt lõi:**
+        NLinear không học giá, mà học: *"Hình dạng biến động quanh điểm hiện tại"*
+        
+        👉 **Khác ARIMA (thống kê), NLinear học pattern mềm.**
+        
+        ```
+        1. Chuẩn hóa: X_norm = X - X_last (loại bỏ trend)
+        2. Linear transform: Y = Linear(X_norm)  
+        3. Denormalize: Forecast = Y + X_last (khôi phục trend)
+        4. Signal = clip(pct_change × 10, -1, 1) × confidence
+        5. Confidence = trend_consistency × 0.5 + 0.5
+        ```
+        **💡 Ý nghĩa & Cách đọc:**
+        - **Signal > +0.4**: AI dự báo tăng mạnh → Tín hiệu mua
+        - **Signal 0 ± 0.2**: AI dự báo đi ngang → Không hành động
+        - **Signal < -0.4**: AI dự báo giảm mạnh → Tín hiệu bán
+        - **Confidence > 70%**: Xu hướng nhất quán → Tin cậy dự báo
+        
+        **📊 Tổng hợp Foundation Signal:**
+        ```
+        Foundation = 0.20×ARIMA + 0.15×Kalman + 0.50×HMM + 0.15×NLinear
+        ```
+        **💡 Cách đọc tổng hợp:**
+        - **> +0.5**: 🟢 Tín hiệu mua mạnh - Cả 4 mô hình đồng thuận tích cực
+        - **+0.2 → +0.5**: 🟡 Tín hiệu mua nhẹ - Đa số mô hình tích cực  
+        - **-0.2 → +0.2**: ⚪ Trung lập - Tín hiệu hỗn hợp, chờ đợi
+        - **-0.5 → -0.2**: 🟠 Tín hiệu bán nhẹ - Đa số mô hình tiêu cực
+        - **< -0.5**: 🔴 Tín hiệu bán mạnh - Cả 4 mô hình đồng thuận tiêu cực
+        - **NLinear**: Deep learning dự báo xu hướng. Chuẩn hóa dữ liệu + Linear layer
         
         **Network (Mạng lưới):**
         - **Density Change**: Tăng = các CP tương quan cao hơn = Risk-off
@@ -339,7 +437,7 @@ def render_phase_details(details, current_price=None):
         if 'components' in p1:
             comp = p1['components']
             
-            c1, c2, c3 = st.columns(3)
+            c1, c2, c3, c4 = st.columns(4)
             with c1:
                 arima_sig = comp.get('arima', {}).get('signal', 0)
                 st.metric("ARIMA", f"{arima_sig:+.3f}", 
@@ -353,6 +451,10 @@ def render_phase_details(details, current_price=None):
                 hmm_regime = comp.get('hmm', {}).get('regime', 'N/A')
                 st.metric("HMM", f"{hmm_sig:+.3f} ({hmm_regime})",
                          help="Xác định xu hướng Bull/Bear/Sideways")
+            with c4:
+                nlinear_sig = comp.get('nlinear', {}).get('signal', 0)
+                st.metric("NLinear", f"{nlinear_sig:+.3f}",
+                         help="Deep learning forecast. >0 = giá sẽ tăng")
         
         st.markdown("### Network (Mạng lưới)")
         st.markdown("*Phân tích mối quan hệ giữa các cổ phiếu*")
