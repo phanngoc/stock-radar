@@ -7,9 +7,6 @@ from services.chatbot_service import get_chatbot_service
 
 def render():
     """Render the info page."""
-    st.title("📰 News Information")
-    st.caption("Xem thông tin và preview dữ liệu tin tức")
-    
     # Get chatbot service
     try:
         chatbot = get_chatbot_service()
@@ -59,15 +56,16 @@ def render():
     selected_date = st.selectbox(
         "Select date to preview",
         options=available_dates,
-        index=0
+        index=0,
+        key="info_date_select"
     )
     
     # Preview options
     col1, col2 = st.columns([3, 1])
     with col1:
-        max_lines = st.slider("Max lines", min_value=50, max_value=500, value=100, step=50)
+        max_lines = st.slider("Max lines", min_value=50, max_value=500, value=100, step=50, key="info_max_lines")
     with col2:
-        show_preview = st.button("👁️ Show Preview", type="primary")
+        show_preview = st.button("👁️ Show Preview", type="primary", key="info_show_preview")
     
     if show_preview:
         preview_content = chatbot.get_document_preview(selected_date, max_lines=max_lines)
@@ -87,7 +85,7 @@ def render():
     st.subheader("🔍 Quick Search")
     st.caption("Search for specific keywords in the news data")
     
-    search_term = st.text_input("Enter keyword to search", placeholder="e.g., AI, 茅台, Bitcoin...")
+    search_term = st.text_input("Enter keyword to search", placeholder="e.g., AI, 茅台, Bitcoin...", key="info_search_term")
     
     if search_term and selected_date:
         preview_content = chatbot.get_document_preview(selected_date, max_lines=1000)

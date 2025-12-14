@@ -8,16 +8,13 @@ from services.chatbot_service import get_chatbot_service
 
 def render():
     """Render the chat page."""
-    st.title("💬 News Chatbot")
-    st.caption("Hỏi đáp về tin tức tài chính với AI")
-    
-    # Initialize session state
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-    if "selected_date" not in st.session_state:
-        st.session_state.selected_date = None
-    if "documents_loaded" not in st.session_state:
-        st.session_state.documents_loaded = False
+    # Initialize session state with namespaced keys
+    if "chat_messages" not in st.session_state:
+        st.session_state.chat_messages = []
+    if "chat_selected_date" not in st.session_state:
+        st.session_state.chat_selected_date = None
+    if "chat_documents_loaded" not in st.session_state:
+        st.session_state.chat_documents_loaded = False
     
     # Sidebar controls
     with st.sidebar:
@@ -46,21 +43,21 @@ def render():
         )
         
         # Load documents button
-        if st.button("📥 Load Documents", type="primary", use_container_width=True):
+        if st.button("📥 Load Documents", type="primary", use_container_width=True, key="chat_load_docs"):
             with st.spinner("Loading documents..."):
                 if chatbot.load_documents(selected_date):
-                    st.session_state.selected_date = selected_date
-                    st.session_state.documents_loaded = True
+                    st.session_state.chat_selected_date = selected_date
+                    st.session_state.chat_documents_loaded = True
                     st.success(f"✅ Loaded: {selected_date}")
                 else:
                     st.error("Failed to load documents")
         
         # Show current status
-        if st.session_state.documents_loaded:
-            st.info(f"📄 Current: {st.session_state.selected_date}")
+        if st.session_state.chat_documents_loaded:
+            st.info(f"📄 Current: {st.session_state.chat_selected_date}")
             
             # Show txt files info
-            txt_files = chatbot.get_txt_files(st.session_state.selected_date)
+            txt_files = chatbot.get_txt_files(st.session_state.chat_selected_date)
             if txt_files:
                 st.caption(f"Files: {len(txt_files)}")
                 for f in txt_files:
@@ -69,19 +66,19 @@ def render():
         st.divider()
         
         # Clear chat button
-        if st.button("🗑️ Clear Chat", use_container_width=True):
-            st.session_state.messages = []
+        if st.button("🗑️ Clear Chat", use_container_width=True, key="chat_clear"):
+            st.session_state.chat_messages = []
             st.rerun()
         
         # Clear cache button
-        if st.button("🔄 Clear Cache", use_container_width=True):
+        if st.button("🔄 Clear Cache", use_container_width=True, key="chat_clear_cache"):
             chatbot.clear_cache()
-            st.session_state.documents_loaded = False
-            st.session_state.selected_date = None
+            st.session_state.chat_documents_loaded = False
+            st.session_state.chat_selected_date = None
             st.rerun()
     
     # Main chat area
-    if not st.session_state.documents_loaded:
+    if not st.session_state.chat_documents_loaded:
         st.info("👈 Please select a date and click **Load Documents** to start chatting.")
         
         # Show sample questions
@@ -96,14 +93,14 @@ def render():
         return
     
     # Display chat history
-    for message in st.session_state.messages:
+    for message in st.session_state.chat_messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
     
     # Chat input
-    if prompt := st.chat_input("Hỏi về tin tức..."):
+    if prompt := st.chat_input("Hỏi về tin tức...", key="chat_input"):
         # Add user message to history
-        st.session_state.messages.append({"role": "user", "content": prompt})
+        st.session_state.chat_messages.append({"role": "user", "content": prompt})
         
         # Display user message
         with st.chat_message("user"):
@@ -114,15 +111,15 @@ def render():
             with st.spinner("Thinking..."):
                 try:
                     chatbot = get_chatbot_service()
-                    response = chatbot.chat(prompt, st.session_state.messages[:-1])
+                    response = chatbot.chat(prompt, st.session_state.chat_messages[:-1])
                     st.markdown(response)
                     
                     # Add assistant response to history
-                    st.session_state.messages.append({"role": "assistant", "content": response})
+                    st.session_state.chat_messages.append({"role": "assistant", "content": response})
                 except Exception as e:
                     error_msg = f"Error: {str(e)}"
                     st.error(error_msg)
-                    st.session_state.messages.append({"role": "assistant", "content": error_msg})
+                    st.session_state.chat_messages.append({"role": "assistant", "content": error_msg})
 
 
 if __name__ == "__main__":
